@@ -1,3 +1,5 @@
+use super::check::{OWNER, REPOSITORY};
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ReleaseAsset {
     pub name: String,
@@ -35,9 +37,13 @@ impl TargetPlatform {
         if is_termux || os == "android" {
             return None;
         }
-
         match os {
-            "macos" | "darwin" => Some(Self::MacosUniversal),
+            "macos" | "darwin" => match arch {
+                "x86_64" | "x86-64" | "x64" | "amd64" | "aarch64" | "arm64" => {
+                    Some(Self::MacosUniversal)
+                }
+                _ => None,
+            },
             "linux" => match arch {
                 "x86_64" | "x86-64" | "x64" | "amd64" => Some(Self::LinuxX64),
                 "aarch64" | "arm64" => Some(Self::LinuxArm64),
@@ -69,47 +75,40 @@ impl TargetPlatform {
         }
     }
 }
+
 pub use crate::config::{TERMUX_PREFIX_USR, is_termux_environment};
 
 impl Release {
-    pub fn find_compatible_asset(&self, platform: TargetPlatform) -> Option<ReleaseAsset> {
-        let expected = platform.expected_asset_name();
-        if let Some(asset) = self.assets.iter().find(|a| a.name == expected) {
+    fn find_asset(&self, expected: &str) -> Option<ReleaseAsset> {
+        if let Some(asset) = self.assets.iter().find(|asset| asset.name == expected) {
             return Some(asset.clone());
         }
-        if self.assets.is_empty() && !self.tag_name.is_empty() {
-            return Some(ReleaseAsset {
-                name: expected.to_string(),
-                download_url: format!(
-                    "https://github.com/mesamirh/MovieBox-Tui/releases/download/{}/{expected}",
-                    self.tag_name
-                ),
-                size: None,
-            });
+        if !self.assets.is_empty() {
+            return None;
         }
-        None
+        let version = self.tag_name.strip_prefix('v').unwrap_or(&self.tag_name);
+        semver::Version::parse(version).ok()?;
+        Some(ReleaseAsset {
+            name: expected.to_string(),
+            download_url: format!(
+                "https://github.com/{OWNER}/{REPOSITORY}/releases/download/{}/{expected}",
+                self.tag_name
+            ),
+            size: None,
+        })
+    }
+
+    pub fn find_compatible_asset(&self, platform: TargetPlatform) -> Option<ReleaseAsset> {
+        self.find_asset(platform.expected_asset_name())
     }
 
     pub fn find_checksum_asset(&self) -> Option<ReleaseAsset> {
-        if let Some(asset) = self.assets.iter().find(|a| a.name == "SHA256SUMS") {
-            return Some(asset.clone());
-        }
-        if self.assets.is_empty() && !self.tag_name.is_empty() {
-            return Some(ReleaseAsset {
-                name: "SHA256SUMS".to_string(),
-                download_url: format!(
-                    "https://github.com/mesamirh/MovieBox-Tui/releases/download/{}/SHA256SUMS",
-                    self.tag_name
-                ),
-                size: None,
-            });
-        }
-        None
+        self.find_asset("SHA256SUMS")
     }
 
     pub fn is_compatible_with_current_platform(&self) -> bool {
         TargetPlatform::current()
-            .and_then(|p| self.find_compatible_asset(p))
+            .and_then(|platform| self.find_compatible_asset(platform))
             .is_some()
     }
 }
@@ -118,56 +117,48 @@ impl Release {
 mod tests {
     use super::*;
 
+    fn fallback_release(tag: &str) -> Release {
+        Release {
+            version: "0.1.16".to_string(),
+            tag_name: tag.to_string(),
+            notes: String::new(),
+            assets: Vec::new(),
+        }
+    }
+
     #[test]
     fn test_synthetic_asset_url_generation_on_empty_assets() {
-        let empty_assets_release = Release {
-            version: "0.1.16".to_string(),
-            tag_name: "v0.1.16".to_string(),
-            notes: "Fallback tag release".to_string(),
-            assets: Vec::new(),
-        };
-
-        let linux_asset = empty_assets_release
-            .find_compatible_asset(TargetPlatform::LinuxX64)
-            .expect("should generate synthetic asset");
-        assert_eq!(linux_asset.name, "MovieBox_Linux_x64.tar.gz");
-        assert_eq!(
-            linux_asset.download_url,
-            "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.16/MovieBox_Linux_x64.tar.gz"
-        );
-
-        let mac_asset = empty_assets_release
-            .find_compatible_asset(TargetPlatform::MacosUniversal)
-            .expect("should generate synthetic asset");
-        assert_eq!(mac_asset.name, "MovieBox_macOS_Universal.tar.gz");
-        assert_eq!(
-            mac_asset.download_url,
-            "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.16/MovieBox_macOS_Universal.tar.gz"
-        );
-
-        let checksum = empty_assets_release
-            .find_checksum_asset()
-            .expect("should generate synthetic checksum");
+        let release = fallback_release("v0.1.16");
+        for platform in [TargetPlatform::LinuxX64, TargetPlatform::MacosUniversal] {
+            let asset = release.find_compatible_asset(platform).unwrap();
+            assert_eq!(asset.name, platform.expected_asset_name());
+            assert_eq!(
+                asset.download_url,
+                format!(
+                    "https://github.com/dyan80514-svg/MovieBox-Tui/releases/download/v0.1.16/{}",
+                    platform.expected_asset_name()
+                )
+            );
+        }
+        let checksum = release.find_checksum_asset().unwrap();
         assert_eq!(checksum.name, "SHA256SUMS");
         assert_eq!(
             checksum.download_url,
-            "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.16/SHA256SUMS"
+            "https://github.com/dyan80514-svg/MovieBox-Tui/releases/download/v0.1.16/SHA256SUMS"
         );
     }
 
     #[test]
-    fn test_empty_tag_does_not_generate_synthetic_assets() {
-        let untagged = Release {
-            version: "0.1.16".to_string(),
-            tag_name: String::new(),
-            notes: String::new(),
-            assets: Vec::new(),
-        };
-        assert!(
-            untagged
-                .find_compatible_asset(TargetPlatform::LinuxX64)
-                .is_none()
-        );
-        assert!(untagged.find_checksum_asset().is_none());
+    fn invalid_tags_do_not_generate_synthetic_assets() {
+        for tag in ["", "latest", "../../other", "v0.1.16?redirect=elsewhere"] {
+            let release = fallback_release(tag);
+            assert!(release.find_compatible_asset(TargetPlatform::LinuxX64).is_none());
+            assert!(release.find_checksum_asset().is_none());
+        }
+    }
+
+    #[test]
+    fn unsupported_macos_architecture_is_rejected() {
+        assert!(TargetPlatform::detect("macos", "powerpc", false).is_none());
     }
 }
