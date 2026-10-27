@@ -88,35 +88,40 @@ mod tests {
 
     #[test]
     fn test_is_newer_comprehensive_matrix() {
-        assert!(is_newer("0.1.9", "0.1.10"));
-        assert!(is_newer("0.1.10", "0.1.11"));
-        assert!(is_newer("0.1.12", "0.1.13"));
-        assert!(is_newer("1.9.0", "1.10.0"));
-        assert!(is_newer("0.9.9", "1.0.0"));
-
-        assert!(!is_newer("0.1.12", "0.1.12"));
-        assert!(!is_newer("1.0.0", "1.0.0"));
-
-        assert!(!is_newer("0.1.13", "0.1.12"));
-        assert!(!is_newer("1.10.0", "1.9.0"));
-        assert!(!is_newer("2.0.0", "1.9.9"));
-
-        assert!(is_newer("v0.1.9", "v0.1.10"));
-        assert!(is_newer("0.1.9", "v0.1.10"));
-        assert!(is_newer("v0.1.9", "0.1.10"));
-        assert!(!is_newer("v0.1.12", "v0.1.12"));
-        assert!(!is_newer("v0.1.13", "v0.1.12"));
-
-        assert!(is_newer("1.0.0-beta", "1.0.0"));
-        assert!(is_newer("1.0.0-rc.1", "1.0.0"));
-        assert!(is_newer("1.0.0-beta.1", "1.0.0-beta.2"));
-        assert!(!is_newer("1.0.0", "1.0.0-beta"));
+        for (current, newer) in [
+            ("0.1.9", "0.1.10"),
+            ("0.1.10", "0.1.11"),
+            ("0.1.12", "0.1.13"),
+            ("1.9.0", "1.10.0"),
+            ("0.9.9", "1.0.0"),
+            ("v0.1.9", "v0.1.10"),
+            ("0.1.9", "v0.1.10"),
+            ("v0.1.9", "0.1.10"),
+            ("1.0.0-beta", "1.0.0"),
+            ("1.0.0-rc.1", "1.0.0"),
+            ("1.0.0-beta.1", "1.0.0-beta.2"),
+        ] {
+            assert!(is_newer(current, newer), "{current} -> {newer}");
+        }
+        for (current, other) in [
+            ("0.1.12", "0.1.12"),
+            ("1.0.0", "1.0.0"),
+            ("0.1.13", "0.1.12"),
+            ("1.10.0", "1.9.0"),
+            ("2.0.0", "1.9.9"),
+            ("v0.1.12", "v0.1.12"),
+            ("v0.1.13", "v0.1.12"),
+            ("1.0.0", "1.0.0-beta"),
+        ] {
+            assert!(!is_newer(current, other), "{current} -> {other}");
+        }
     }
 
     #[test]
-    fn test_is_newer_non_semver_fallback() {
-        assert!(is_newer("0.1.12", "custom-build-1"));
+    fn test_is_newer_non_semver_fails_closed() {
+        assert!(!is_newer("0.1.12", "custom-build-1"));
         assert!(!is_newer("custom-build-1", "custom-build-1"));
+        assert!(!is_newer("custom-build-1", "0.1.27"));
     }
 
     #[test]
@@ -124,11 +129,10 @@ mod tests {
         let raw_json = "{\"tag_name\": \"v0.1.13\", \"body\": \"### New Features\\n- Added cool feature\\n- Fixed bugs\"}";
         let item: serde_json::Value = serde_json::from_str(raw_json).unwrap();
         let tag = item["tag_name"].as_str().unwrap();
-        let notes = item["body"].as_str().unwrap_or("").to_string();
         let release = Release {
             version: tag.trim_start_matches('v').to_string(),
             tag_name: tag.to_string(),
-            notes,
+            notes: item["body"].as_str().unwrap_or("").to_string(),
             assets: Vec::new(),
         };
         assert_eq!(release.version, "0.1.13");
@@ -137,100 +141,63 @@ mod tests {
 
     #[test]
     fn test_release_json_missing_body_graceful() {
-        let raw_json = "{\"tag_name\": \"v0.1.13\"}";
-        let item: serde_json::Value = serde_json::from_str(raw_json).unwrap();
-        let tag = item["tag_name"].as_str().unwrap();
-        let notes = item["body"].as_str().unwrap_or("").to_string();
-        assert_eq!(notes, "");
-        assert_eq!(tag.trim_start_matches('v'), "0.1.13");
+        let item: serde_json::Value =
+            serde_json::from_str("{\"tag_name\": \"v0.1.13\"}").unwrap();
+        assert_eq!(item["body"].as_str().unwrap_or(""), "");
+        assert_eq!(item["tag_name"].as_str().unwrap(), "v0.1.13");
     }
 
     fn sample_release_with_all_assets() -> Release {
+        let names = [
+            "MovieBox_macOS_Universal.tar.gz",
+            "MovieBox_Linux_x64.tar.gz",
+            "MovieBox_Linux_arm64.tar.gz",
+            "MovieBox_Windows_x64.zip",
+            "MovieBox_Windows_arm64.zip",
+            "SHA256SUMS",
+        ];
         Release {
             version: "0.1.13".to_string(),
             tag_name: "v0.1.13".to_string(),
             notes: "Bug fixes and improvements".to_string(),
-            assets: vec![
-                ReleaseAsset {
-                    name: "MovieBox_macOS_Universal.tar.gz".to_string(),
-                    download_url: "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.13/MovieBox_macOS_Universal.tar.gz".to_string(),
-                    size: Some(15_000_000),
-                },
-                ReleaseAsset {
-                    name: "MovieBox_Linux_x64.tar.gz".to_string(),
-                    download_url: "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.13/MovieBox_Linux_x64.tar.gz".to_string(),
-                    size: Some(12_000_000),
-                },
-                ReleaseAsset {
-                    name: "MovieBox_Linux_arm64.tar.gz".to_string(),
-                    download_url: "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.13/MovieBox_Linux_arm64.tar.gz".to_string(),
-                    size: Some(11_500_000),
-                },
-                ReleaseAsset {
-                    name: "MovieBox_Windows_x64.zip".to_string(),
-                    download_url: "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.13/MovieBox_Windows_x64.zip".to_string(),
-                    size: Some(13_000_000),
-                },
-                ReleaseAsset {
-                    name: "MovieBox_Windows_arm64.zip".to_string(),
-                    download_url: "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.13/MovieBox_Windows_arm64.zip".to_string(),
-                    size: Some(12_500_000),
-                },
-                ReleaseAsset {
-                    name: "SHA256SUMS".to_string(),
-                    download_url: "https://github.com/mesamirh/MovieBox-Tui/releases/download/v0.1.13/SHA256SUMS".to_string(),
-                    size: Some(512),
-                },
-            ],
+            assets: names
+                .into_iter()
+                .map(|name| ReleaseAsset {
+                    name: name.to_string(),
+                    download_url: format!(
+                        "https://github.com/{}/{}/releases/download/v0.1.13/{name}",
+                        check::OWNER,
+                        check::REPOSITORY
+                    ),
+                    size: Some(1000),
+                })
+                .collect(),
         }
     }
 
     #[test]
     fn test_update_asset_selection_for_current_platform() {
         let release = sample_release_with_all_assets();
-
-        let mac_platform = TargetPlatform::detect("macos", "aarch64", false).unwrap();
-        let mac_asset = release.find_compatible_asset(mac_platform).unwrap();
-        assert_eq!(mac_asset.name, "MovieBox_macOS_Universal.tar.gz");
-
-        let linux_x64 = TargetPlatform::detect("linux", "x86_64", false).unwrap();
-        let linux_x64_asset = release.find_compatible_asset(linux_x64).unwrap();
-        assert_eq!(linux_x64_asset.name, "MovieBox_Linux_x64.tar.gz");
-
-        let linux_arm64 = TargetPlatform::detect("linux", "aarch64", false).unwrap();
-        let linux_arm64_asset = release.find_compatible_asset(linux_arm64).unwrap();
-        assert_eq!(linux_arm64_asset.name, "MovieBox_Linux_arm64.tar.gz");
-
-        let win_x64 = TargetPlatform::detect("windows", "x86_64", false).unwrap();
-        let win_x64_asset = release.find_compatible_asset(win_x64).unwrap();
-        assert_eq!(win_x64_asset.name, "MovieBox_Windows_x64.zip");
-
-        let win_arm64 = TargetPlatform::detect("windows", "arm64", false).unwrap();
-        let win_arm64_asset = release.find_compatible_asset(win_arm64).unwrap();
-        assert_eq!(win_arm64_asset.name, "MovieBox_Windows_arm64.zip");
-
-        let checksum = release.find_checksum_asset().unwrap();
-        assert_eq!(checksum.name, "SHA256SUMS");
+        for (os, arch, expected) in [
+            ("macos", "aarch64", "MovieBox_macOS_Universal.tar.gz"),
+            ("linux", "x86_64", "MovieBox_Linux_x64.tar.gz"),
+            ("linux", "aarch64", "MovieBox_Linux_arm64.tar.gz"),
+            ("windows", "x86_64", "MovieBox_Windows_x64.zip"),
+            ("windows", "arm64", "MovieBox_Windows_arm64.zip"),
+        ] {
+            let platform = TargetPlatform::detect(os, arch, false).unwrap();
+            assert_eq!(release.find_compatible_asset(platform).unwrap().name, expected);
+        }
+        assert_eq!(release.find_checksum_asset().unwrap().name, "SHA256SUMS");
     }
 
     #[test]
     fn test_update_asset_missing_for_current_platform() {
-        let partial_release = Release {
-            version: "0.1.13".to_string(),
-            tag_name: "v0.1.13".to_string(),
-            notes: "Partial release".to_string(),
-            assets: vec![ReleaseAsset {
-                name: "MovieBox_Linux_x64.tar.gz".to_string(),
-                download_url: "https://...".to_string(),
-                size: Some(1000),
-            }],
-        };
-
-        let mac = TargetPlatform::detect("macos", "arm64", false).unwrap();
-        assert!(partial_release.find_compatible_asset(mac).is_none());
-
-        let win = TargetPlatform::detect("windows", "x86_64", false).unwrap();
-        assert!(partial_release.find_compatible_asset(win).is_none());
+        let mut release = sample_release_with_all_assets();
+        release.assets.retain(|asset| asset.name == "MovieBox_Linux_x64.tar.gz");
+        assert!(release.find_compatible_asset(TargetPlatform::MacosUniversal).is_none());
+        assert!(release.find_compatible_asset(TargetPlatform::WindowsX64).is_none());
+        assert!(release.find_checksum_asset().is_none());
     }
 
     #[test]
@@ -258,9 +225,8 @@ mod tests {
     fn test_update_asset_multiple_candidates_deterministic() {
         let release = sample_release_with_all_assets();
         let platform = TargetPlatform::LinuxX64;
-        let a1 = release.find_compatible_asset(platform);
-        let a2 = release.find_compatible_asset(platform);
-        assert_eq!(a1, a2);
-        assert_eq!(a1.unwrap().name, "MovieBox_Linux_x64.tar.gz");
+        let first = release.find_compatible_asset(platform);
+        assert_eq!(first, release.find_compatible_asset(platform));
+        assert_eq!(first.unwrap().name, "MovieBox_Linux_x64.tar.gz");
     }
 }
