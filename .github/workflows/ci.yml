@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,13 +13,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: '1'
+
 jobs:
   hygiene:
     name: Hygiene
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.90.0
@@ -26,8 +33,8 @@ jobs:
           targets: x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "ci-hygiene"
-      - run: cargo fmt --check
+          prefix-key: ci-hygiene
+      - run: cargo fmt --all -- --check
       - name: Validate Unix installer syntax
         run: bash -n install.sh
       - name: Validate Windows installer syntax
@@ -46,38 +53,41 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - name: Verify musl target compilation
         run: cargo check --locked --target x86_64-unknown-linux-musl
-      - name: Audit dependencies
+      - name: Install dependency auditor
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
       - run: cargo audit
       - name: Verify package
         run: cargo package --locked
-      - name: Verify documentation build
+      - name: Install mdBook
         uses: taiki-e/install-action@v2
         with:
           tool: mdbook
       - name: Test mdBook build
         run: |
-          cp CHANGELOG.md docs/changelog.md && cp CONTRIBUTING.md docs/contributing.md
+          cp CHANGELOG.md docs/changelog.md
+          cp CONTRIBUTING.md docs/contributing.md
           mdbook build
 
   build-and-test:
     name: Build and test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.90.0
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "ci-build-test-${{ matrix.os }}"
+          prefix-key: ci-build-test-${{ matrix.os }}
       - run: cargo build --all-features --locked
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -87,6 +97,9 @@ jobs:
         env:
           MOVIEBOX_CONFIG_DIR: ${{ runner.temp }}/mb_config
           MOVIEBOX_DATA_DIR: ${{ runner.temp }}/mb_data
+          MOVIEBOX_CACHE_DIR: ${{ runner.temp }}/mb_cache
         run: cargo nextest run --all-features --locked
+      - name: Run documentation tests
+        run: cargo test --doc --all-features --locked
       - name: Smoke-test binary startup
         run: cargo run --all-features --locked -- --version
