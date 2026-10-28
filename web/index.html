@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101311">
+  <meta name="description" content="Discover movies and series with MovieBox. Browse live Cinemeta catalogs and keep your own local watchlist.">
+  <title>MovieBox — Find your next favorite</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <a class="brand" href="./index.html" aria-label="MovieBox home"><span class="brand-mark" aria-hidden="true">▶</span> MovieBox<span class="brand-dot">.</span></a>
+    <div class="sidebar-label">YOUR NEXT GREAT STORY</div>
+    <nav aria-label="Main navigation">
+      <button class="nav-item active" data-view="discover" aria-current="page"><span aria-hidden="true">▦</span> Discover</button>
+      <button class="nav-item" data-view="movie"><span aria-hidden="true">▤</span> Movies</button>
+      <button class="nav-item" data-view="series"><span aria-hidden="true">▣</span> TV shows</button>
+      <div class="nav-divider"></div>
+      <div class="sidebar-label">YOUR SPACE</div>
+      <button class="nav-item" data-view="saved"><span aria-hidden="true">♡</span> My list <span id="saved-count" class="count">0</span></button>
+    </nav>
+    <div class="terminal-promo"><span class="terminal-symbol" aria-hidden="true">&gt;_</span><h3>Made for the big picture.</h3><p>Take MovieBox to your terminal for native players and downloads.</p><a href="https://github.com/dyan80514-svg/MovieBox-Tui#installation" target="_blank" rel="noopener noreferrer">Get the terminal app <span aria-hidden="true">↗</span></a></div>
+    <div class="sidebar-footer"><span class="status-dot"></span> Open source. Yours to explore.</div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="breadcrumb">Your daily dose of cinema <span aria-hidden="true">✦</span></div>
+      <form id="search-form" role="search"><label class="sr-only" for="search">Search movies and TV shows</label><span aria-hidden="true">⌕</span><input id="search" name="search" type="search" placeholder="Search movies, TV shows…" autocomplete="off" maxlength="200"><kbd aria-hidden="true">/</kbd><button type="submit" class="search-submit" aria-label="Search">→</button></form>
+      <button id="about-button" class="avatar" aria-label="About MovieBox">M</button>
+    </header>
+    <main id="main" tabindex="-1">
+      <section id="hero" class="hero" aria-labelledby="hero-title">
+        <img id="hero-image" class="hero-image" alt="" hidden>
+        <div class="hero-shade"></div>
+        <div class="hero-content"><div class="eyebrow"><span class="status-dot"></span> THE MOVIEBOX SPOTLIGHT</div><h1 id="hero-title">Great stories.<br>Your next obsession.</h1><div id="hero-meta" class="hero-meta">Movies, series, and a world of possibilities.</div><p id="hero-description">Find something worth getting lost in. Explore the catalog and make your next movie night a little more memorable.</p><div class="hero-actions"><button id="hero-details" class="primary" disabled>Explore spotlight <span aria-hidden="true">↗</span></button><button id="hero-save" class="secondary" disabled>＋ My list</button></div></div>
+        <div class="hero-corner"><span>THE DISCOVERY EDIT</span><span>Powered by Cinemeta</span></div>
+      </section>
+      <section class="catalog" aria-labelledby="catalog-title">
+        <div class="section-heading"><div><div id="section-eyebrow" class="eyebrow muted">A LITTLE INSPIRATION</div><h2 id="catalog-title">Popular right now <span class="accent">↗</span></h2><p id="catalog-subtitle">Find your next favorite, one story at a time.</p></div><label class="sort-label">Browse <select id="catalog-sort"><option value="top">Popular</option><option value="imdbRating">Top rated</option></select></label></div>
+        <div class="filter-bar"><div id="type-filters" class="chips" role="group" aria-label="Content type"><button class="chip active" data-type="all" aria-pressed="true">All titles</button><button class="chip" data-type="movie" aria-pressed="false">Movies</button><button class="chip" data-type="series" aria-pressed="false">TV shows</button></div><label class="genre-label"><span class="sr-only">Filter loaded titles by genre</span><select id="genre" title="Filter the loaded titles by genre"><option value="">All genres</option></select></label></div>
+        <div id="notice" class="notice" role="status" hidden></div>
+        <div id="results-status" class="results-status" role="status" aria-live="polite"></div>
+        <div id="grid" class="grid" aria-busy="true"></div>
+        <div id="empty" class="empty" hidden><span class="empty-icon" aria-hidden="true">⌕</span><h3 id="empty-title">No titles found</h3><p id="empty-description">Try another title or change your filters.</p><button id="reset-button" class="secondary">Reset filters</button></div>
+        <div class="load-more-wrap"><button id="load-more" class="secondary" hidden>Show more titles ↓</button><button id="retry" class="secondary" hidden>Try again ↻</button></div>
+      </section>
+      <footer class="page-footer"><span>MovieBox<span class="accent">.</span> <span class="footer-divider">/</span> A good story is always worth finding.</span><span>Catalog by Cinemeta · List stored on your device</span></footer>
+    </main>
+  </div>
+  <dialog id="details-dialog" aria-labelledby="detail-title"><div class="dialog-top"><span class="eyebrow muted">TITLE DETAILS</span><button id="close-details" class="icon-button" aria-label="Close details">×</button></div><div id="detail-body"></div></dialog>
+  <dialog id="about-dialog" aria-labelledby="about-title"><div class="dialog-top"><span class="eyebrow muted">MEET MOVIEBOX</span><button id="close-about" class="icon-button" aria-label="Close about">×</button></div><div class="about-body"><h2 id="about-title">Less scrolling.<br>More great stories.</h2><p>This web companion uses the same Cinemeta catalog and metadata endpoints as MovieBox-TUI’s built-in addon.</p><h3>Discover here. Play in your terminal.</h3><p>Cinemeta supplies metadata, not movie streams. This site does not host videos or launch local executables. Use the Rust app for supported streaming providers, native media players, and downloads.</p><a class="primary link-button" href="https://github.com/dyan80514-svg/MovieBox-Tui#installation" target="_blank" rel="noopener noreferrer">Installation guide ↗</a><h3>Your list stays yours.</h3><p>Favorites are saved in this browser only, separately from the terminal app. Catalog requests and poster images contact external providers. If a direct API request is blocked, it is retried through corsproxy.io, which receives that request URL, including any search terms. No analytics are included.</p></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><div class="noscript">Enable JavaScript to browse live movie catalogs.</div></noscript>
+</body>
+</html>
